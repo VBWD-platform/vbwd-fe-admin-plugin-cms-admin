@@ -10,6 +10,7 @@
           Cancel
         </router-link>
         <button
+          v-if="canManage"
           class="btn btn--danger"
           :disabled="isNew || store.loading"
           @click="remove"
@@ -17,6 +18,7 @@
           Delete
         </button>
         <button
+          v-if="canManage"
           class="btn btn--primary"
           :disabled="store.loading"
           @click="save"
@@ -106,6 +108,7 @@
             Areas
           </h3>
           <button
+            v-if="canManage"
             type="button"
             class="btn btn--sm"
             @click="addArea"
@@ -202,6 +205,7 @@
             Widget Assignments
           </h3>
           <button
+            v-if="canManage"
             type="button"
             class="btn btn--sm"
             @click="saveAssignments"
@@ -308,6 +312,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useCmsAdminStore } from '../stores/useCmsAdminStore';
+import { useAuthStore } from '@/stores/auth';
 import type { CmsAreaDefinition, CmsLayoutWidgetAssignment, CmsWidget } from '../stores/useCmsAdminStore';
 import CmsWidgetPicker from '../components/CmsWidgetPicker.vue';
 
@@ -316,6 +321,8 @@ const AREA_TYPES = ['header', 'footer', 'hero', 'slideshow', 'content', 'three-c
 const route = useRoute();
 const router = useRouter();
 const store = useCmsAdminStore();
+const authStore = useAuthStore();
+const canManage = computed(() => authStore.hasPermission('cms.layouts.manage'));
 
 const id = route.params.id as string | undefined;
 const isNew = !id;

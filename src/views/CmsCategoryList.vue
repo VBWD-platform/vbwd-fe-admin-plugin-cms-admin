@@ -3,6 +3,7 @@
     <div class="view-header">
       <h2>{{ $t('cms.categories') }}</h2>
       <button
+        v-if="canManage"
         class="create-btn"
         @click="openCreate"
       >
@@ -24,6 +25,7 @@
     >
       <p>{{ $t('cms.noCategories') }}</p>
       <button
+        v-if="canManage"
         class="create-btn"
         @click="openCreate"
       >
@@ -58,6 +60,7 @@
           <td>{{ cat.sort_order }}</td>
           <td>
             <button
+              v-if="canManage"
               class="action-btn"
               @click="openEdit(cat)"
             >
@@ -65,6 +68,7 @@
             </button>
             &nbsp;
             <button
+              v-if="canManage"
               class="action-btn danger"
               @click="remove(cat.id)"
             >
@@ -135,6 +139,7 @@
       </div>
       <div class="inline-form__actions">
         <button
+          v-if="canManage"
           class="create-btn"
           :disabled="store.loading"
           @click="submit"
@@ -155,9 +160,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useCmsAdminStore } from '../stores/useCmsAdminStore';
+import { useAuthStore } from '@/stores/auth';
 import type { CmsCategory } from '../stores/useCmsAdminStore';
 
 const store = useCmsAdminStore();
+const authStore = useAuthStore();
+const canManage = computed(() => authStore.hasPermission('cms.pages.manage'));
 
 const formOpen = ref(false);
 const editing = ref<CmsCategory | null>(null);

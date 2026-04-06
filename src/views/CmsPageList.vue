@@ -4,12 +4,14 @@
       <h2>{{ $t('cms.pages') }}</h2>
       <div class="view-header__actions">
         <button
+          v-if="canManage"
           class="btn"
           @click="importInput?.click()"
         >
           Import
         </button>
         <input
+          v-if="canManage"
           ref="importInput"
           type="file"
           accept=".json"
@@ -17,6 +19,7 @@
           @change="onImport"
         >
         <router-link
+          v-if="canManage"
           :to="{ name: 'cms-page-new' }"
           class="create-btn"
         >
@@ -102,7 +105,7 @@
 
     <!-- Bulk toolbar -->
     <div
-      v-if="store.selectedPageIds.size"
+      v-if="canManage && store.selectedPageIds.size"
       class="bulk-actions"
     >
       <span class="selection-info">{{ $t('common.selected', { count: store.selectedPageIds.size }) }}</span>
@@ -233,6 +236,7 @@
             </router-link>
             &nbsp;
             <button
+              v-if="canManage"
               class="action-btn danger"
               @click="deletePage(page.id)"
             >
@@ -268,6 +272,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useCmsAdminStore } from '../stores/useCmsAdminStore';
+import { useAuthStore } from '@/stores/auth';
+
+const authStore = useAuthStore();
+const canManage = computed(() => authStore.hasPermission('cms.pages.manage'));
 
 const store = useCmsAdminStore();
 const search = ref('');

@@ -55,7 +55,10 @@
     </section>
 
     <!-- ── IMPORT ──────────────────────────────────────────────────────── -->
-    <section class="cms-ie__card">
+    <section
+      v-if="canManage"
+      class="cms-ie__card"
+    >
       <h2 class="cms-ie__section-title">
         Import
       </h2>
@@ -189,7 +192,11 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import { useAuthStore } from '@/stores/auth';
 import { useCmsAdminStore } from '../stores/useCmsAdminStore';
+
+const authStore = useAuthStore();
+const canManage = computed(() => authStore.hasPermission('cms.pages.manage'));
 
 const store = useCmsAdminStore();
 

@@ -19,6 +19,7 @@
           {{ $t('cms.cancel') }}
         </router-link>
         <button
+          v-if="canManage"
           class="btn"
           :disabled="store.loading"
           @click="save()"
@@ -26,7 +27,7 @@
           {{ $t('cms.savePage') }}
         </button>
         <button
-          v-if="form.is_published"
+          v-if="canManage && form.is_published"
           class="btn btn--warn"
           :disabled="store.loading"
           @click="togglePublish"
@@ -34,7 +35,7 @@
           {{ $t('cms.unpublish') }}
         </button>
         <button
-          v-else
+          v-else-if="canManage"
           class="btn btn--primary"
           :disabled="store.loading"
           @click="togglePublish"
@@ -152,84 +153,84 @@
             SEO Settings
           </summary>
           <div class="seo-tab">
-          <div class="field-group">
-            <label class="field-label">{{ $t('cms.metaTitle') }}</label>
-            <input
-              v-model="form.meta_title"
-              class="field-input"
-              type="text"
-            >
-          </div>
-          <div class="field-group">
-            <label class="field-label">{{ $t('cms.metaDescription') }}</label>
-            <textarea
-              v-model="form.meta_description"
-              class="field-input"
-              rows="3"
-            />
-          </div>
-          <div class="field-group">
-            <label class="field-label">{{ $t('cms.metaKeywords') }}</label>
-            <input
-              v-model="form.meta_keywords"
-              class="field-input"
-              type="text"
-            >
-          </div>
-          <div class="field-group">
-            <label class="field-label">{{ $t('cms.ogTitle') }}</label>
-            <input
-              v-model="form.og_title"
-              class="field-input"
-              type="text"
-            >
-          </div>
-          <div class="field-group">
-            <label class="field-label">{{ $t('cms.ogDescription') }}</label>
-            <textarea
-              v-model="form.og_description"
-              class="field-input"
-              rows="3"
-            />
-          </div>
-          <div class="field-group">
-            <label class="field-label">{{ $t('cms.ogImage') }}</label>
-            <input
-              v-model="form.og_image_url"
-              class="field-input"
-              type="text"
-            >
-          </div>
-          <div class="field-group">
-            <label class="field-label">{{ $t('cms.canonicalUrl') }}</label>
-            <input
-              v-model="form.canonical_url"
-              class="field-input"
-              type="text"
-            >
-          </div>
-          <div class="field-group">
-            <label class="field-label">{{ $t('cms.robots') }}</label>
-            <input
-              v-model="form.robots"
-              class="field-input"
-              type="text"
-              placeholder="index,follow"
-            >
-          </div>
-          <div class="field-group">
-            <label class="field-label">{{ $t('cms.schemaJson') }}</label>
-            <textarea
-              v-model="schemaJsonText"
-              class="field-input field-input--mono"
-              rows="5"
-              @blur="parseSchemaJson"
-            />
-            <span
-              v-if="schemaError"
-              class="field-error"
-            >{{ schemaError }}</span>
-          </div>
+            <div class="field-group">
+              <label class="field-label">{{ $t('cms.metaTitle') }}</label>
+              <input
+                v-model="form.meta_title"
+                class="field-input"
+                type="text"
+              >
+            </div>
+            <div class="field-group">
+              <label class="field-label">{{ $t('cms.metaDescription') }}</label>
+              <textarea
+                v-model="form.meta_description"
+                class="field-input"
+                rows="3"
+              />
+            </div>
+            <div class="field-group">
+              <label class="field-label">{{ $t('cms.metaKeywords') }}</label>
+              <input
+                v-model="form.meta_keywords"
+                class="field-input"
+                type="text"
+              >
+            </div>
+            <div class="field-group">
+              <label class="field-label">{{ $t('cms.ogTitle') }}</label>
+              <input
+                v-model="form.og_title"
+                class="field-input"
+                type="text"
+              >
+            </div>
+            <div class="field-group">
+              <label class="field-label">{{ $t('cms.ogDescription') }}</label>
+              <textarea
+                v-model="form.og_description"
+                class="field-input"
+                rows="3"
+              />
+            </div>
+            <div class="field-group">
+              <label class="field-label">{{ $t('cms.ogImage') }}</label>
+              <input
+                v-model="form.og_image_url"
+                class="field-input"
+                type="text"
+              >
+            </div>
+            <div class="field-group">
+              <label class="field-label">{{ $t('cms.canonicalUrl') }}</label>
+              <input
+                v-model="form.canonical_url"
+                class="field-input"
+                type="text"
+              >
+            </div>
+            <div class="field-group">
+              <label class="field-label">{{ $t('cms.robots') }}</label>
+              <input
+                v-model="form.robots"
+                class="field-input"
+                type="text"
+                placeholder="index,follow"
+              >
+            </div>
+            <div class="field-group">
+              <label class="field-label">{{ $t('cms.schemaJson') }}</label>
+              <textarea
+                v-model="schemaJsonText"
+                class="field-input field-input--mono"
+                rows="5"
+                @blur="parseSchemaJson"
+              />
+              <span
+                v-if="schemaError"
+                class="field-error"
+              >{{ schemaError }}</span>
+            </div>
           </div>
         </details>
       </div>
@@ -352,6 +353,10 @@
 import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useCmsAdminStore } from '../stores/useCmsAdminStore';
+import { useAuthStore } from '@/stores/auth';
+
+const authStore = useAuthStore();
+const canManage = computed(() => authStore.hasPermission('cms.pages.manage'));
 import TipTapEditor from '../components/TipTapEditor.vue';
 import CodeMirrorEditor from '../components/CodeMirrorEditor.vue';
 import CmsImagePicker from '../components/CmsImagePicker.vue';

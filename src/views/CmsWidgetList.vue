@@ -32,6 +32,7 @@
           </option>
         </select>
         <button
+          v-if="canManage"
           class="btn"
           @click="importInput?.click()"
         >
@@ -45,6 +46,7 @@
           @change="onImport"
         >
         <button
+          v-if="canManage"
           class="btn btn--primary"
           @click="$router.push('/admin/cms/widgets/new')"
         >
@@ -65,6 +67,7 @@
         Export selected
       </button>
       <button
+        v-if="canManage"
         class="btn btn--danger"
         @click="bulkDelete"
       >
@@ -190,10 +193,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useCmsAdminStore } from '../stores/useCmsAdminStore';
+import { useAuthStore } from '@/stores/auth';
 
 const importInput = ref<HTMLInputElement | null>(null);
 
 const store = useCmsAdminStore();
+const authStore = useAuthStore();
+const canManage = computed(() => authStore.hasPermission('cms.widgets.manage'));
 const query = ref('');
 const typeFilter = ref('');
 const page = ref(1);

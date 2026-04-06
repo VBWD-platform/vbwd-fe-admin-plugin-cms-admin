@@ -24,14 +24,14 @@ const NAV_SECTIONS = [
     id: 'cms',
     label: 'CMS',
     items: [
-      { label: 'Pages', to: '/admin/cms/pages' },
-      { label: 'Categories', to: '/admin/cms/categories' },
-      { label: 'Images', to: '/admin/cms/images' },
-      { label: 'Layouts', to: '/admin/cms/layouts' },
-      { label: 'Widgets', to: '/admin/cms/widgets' },
-      { label: 'Styles', to: '/admin/cms/styles' },
-      { label: 'Routing Rules', to: '/admin/cms/routing-rules' },
-      { label: 'Import / Export', to: '/admin/cms/import-export' },
+      { label: 'Pages', to: '/admin/cms/pages', requiredPermission: 'cms.pages.view' },
+      { label: 'Categories', to: '/admin/cms/categories', requiredPermission: 'cms.pages.view' },
+      { label: 'Images', to: '/admin/cms/images', requiredPermission: 'cms.images.view' },
+      { label: 'Layouts', to: '/admin/cms/layouts', requiredPermission: 'cms.layouts.manage' },
+      { label: 'Widgets', to: '/admin/cms/widgets', requiredPermission: 'cms.widgets.view' },
+      { label: 'Styles', to: '/admin/cms/styles', requiredPermission: 'cms.styles.manage' },
+      { label: 'Routing Rules', to: '/admin/cms/routing-rules', requiredPermission: 'cms.configure' },
+      { label: 'Import / Export', to: '/admin/cms/import-export', requiredPermission: 'cms.pages.manage' },
     ],
   },
 ];
@@ -56,84 +56,102 @@ export const cmsAdminPlugin: IPlugin = {
     extensionRegistry.register('cms-admin', { navSections: NAV_SECTIONS });
 
     // Register admin routes (added as children of the 'admin' layout route)
+    // Pages
     sdk.addRoute({
       path: 'cms/pages',
       name: 'cms-admin-pages',
       component: () => import('./src/views/CmsPageList.vue'),
+      meta: { requiredPermission: 'cms.pages.view' },
     });
     sdk.addRoute({
       path: 'cms/pages/new',
       name: 'cms-page-new',
       component: () => import('./src/views/CmsPageEditor.vue'),
+      meta: { requiredPermission: 'cms.pages.manage' },
     });
     sdk.addRoute({
       path: 'cms/pages/:id/edit',
       name: 'cms-page-edit',
       component: () => import('./src/views/CmsPageEditor.vue'),
+      meta: { requiredPermission: 'cms.pages.view' },
     });
+    // Categories
     sdk.addRoute({
       path: 'cms/categories',
       name: 'cms-categories',
       component: () => import('./src/views/CmsCategoryList.vue'),
+      meta: { requiredPermission: 'cms.pages.view' },
     });
+    // Images
     sdk.addRoute({
       path: 'cms/images',
       name: 'cms-images',
       component: () => import('./src/views/CmsImageGallery.vue'),
+      meta: { requiredPermission: 'cms.images.view' },
     });
     // Styles
     sdk.addRoute({
       path: 'cms/styles',
       name: 'cms-styles',
       component: () => import('./src/views/CmsStyleList.vue'),
+      meta: { requiredPermission: 'cms.styles.manage' },
     });
     sdk.addRoute({
       path: 'cms/styles/new',
       name: 'cms-style-new',
       component: () => import('./src/views/CmsStyleEditor.vue'),
+      meta: { requiredPermission: 'cms.styles.manage' },
     });
     sdk.addRoute({
       path: 'cms/styles/:id/edit',
       name: 'cms-style-edit',
       component: () => import('./src/views/CmsStyleEditor.vue'),
+      meta: { requiredPermission: 'cms.styles.manage' },
     });
     // Widgets
     sdk.addRoute({
       path: 'cms/widgets',
       name: 'cms-widgets',
       component: () => import('./src/views/CmsWidgetList.vue'),
+      meta: { requiredPermission: 'cms.widgets.view' },
     });
     sdk.addRoute({
       path: 'cms/widgets/new',
       name: 'cms-widget-new',
       component: () => import('./src/views/CmsWidgetEditor.vue'),
+      meta: { requiredPermission: 'cms.widgets.manage' },
     });
     sdk.addRoute({
       path: 'cms/widgets/:id/edit',
       name: 'cms-widget-edit',
       component: () => import('./src/views/CmsWidgetEditor.vue'),
+      meta: { requiredPermission: 'cms.widgets.manage' },
     });
     // Import / Export
     sdk.addRoute({
       path: 'cms/import-export',
       name: 'cms-import-export',
       component: () => import('./src/views/CmsImportExport.vue'),
+      meta: { requiredPermission: 'cms.pages.manage' },
     });
     // Layouts
     sdk.addRoute({
       path: 'cms/layouts',
       name: 'cms-layouts',
       component: () => import('./src/views/CmsLayoutList.vue'),
+      meta: { requiredPermission: 'cms.layouts.manage' },
     });
     sdk.addRoute({
       path: 'cms/layouts/new',
       name: 'cms-layout-new',
       component: () => import('./src/views/CmsLayoutEditor.vue'),
+      meta: { requiredPermission: 'cms.layouts.manage' },
     });
     sdk.addRoute({
       path: 'cms/layouts/:id/edit',
       name: 'cms-layout-edit',
       component: () => import('./src/views/CmsLayoutEditor.vue'),
+      meta: { requiredPermission: 'cms.layouts.manage' },
     });
   },
 

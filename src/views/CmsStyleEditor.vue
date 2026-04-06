@@ -10,6 +10,7 @@
           Cancel
         </router-link>
         <button
+          v-if="canManage"
           class="btn btn--danger"
           :disabled="isNew || store.loading"
           @click="remove"
@@ -17,6 +18,7 @@
           Delete
         </button>
         <button
+          v-if="canManage"
           class="btn btn--primary"
           :disabled="store.loading"
           @click="save"
@@ -97,14 +99,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, nextTick } from 'vue';
+import { ref, computed, watch, onMounted, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useCmsAdminStore } from '../stores/useCmsAdminStore';
+import { useAuthStore } from '@/stores/auth';
 import CodeMirrorEditor from '../components/CodeMirrorEditor.vue';
 
 const route = useRoute();
 const router = useRouter();
 const store = useCmsAdminStore();
+const authStore = useAuthStore();
+const canManage = computed(() => authStore.hasPermission('cms.styles.manage'));
 
 const id = route.params.id as string | undefined;
 const isNew = !id;

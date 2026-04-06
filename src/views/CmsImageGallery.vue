@@ -4,13 +4,16 @@
       <h2>{{ $t('cms.images') }}</h2>
       <div class="view-header__actions">
         <button
-          v-if="store.selectedImageIds.size"
+          v-if="canManage && store.selectedImageIds.size"
           class="bulk-delete-btn"
           @click="bulkDelete"
         >
           {{ $t('cms.bulkDelete') }} ({{ store.selectedImageIds.size }})
         </button>
-        <label class="create-btn">
+        <label
+          v-if="canManage"
+          class="create-btn"
+        >
           + {{ $t('cms.upload') }}
           <input
             type="file"
@@ -47,7 +50,10 @@
         class="empty-state"
       >
         <p>{{ $t('cms.noImages') }}</p>
-        <label class="create-btn">
+        <label
+          v-if="canManage"
+          class="create-btn"
+        >
           {{ $t('cms.upload') }}
           <input
             type="file"
@@ -95,6 +101,7 @@
               ✏
             </button>
             <button
+              v-if="canManage"
               class="icon-btn danger"
               :title="$t('cms.delete')"
               @click="remove(img.id)"
@@ -202,11 +209,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useCmsAdminStore } from '../stores/useCmsAdminStore';
+import { useAuthStore } from '@/stores/auth';
 import type { CmsImage } from '../stores/useCmsAdminStore';
 
 const store = useCmsAdminStore();
+const authStore = useAuthStore();
+const canManage = computed(() => authStore.hasPermission('cms.images.manage'));
 const search = ref('');
 const currentPage = ref(1);
 let searchTimer: ReturnType<typeof setTimeout>;
