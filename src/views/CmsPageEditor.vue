@@ -336,9 +336,145 @@
               &nbsp;{{ $t('cms.published') }}
             </label>
           </div>
+          <div
+            v-if="pageAccessLevels.length > 0"
+            class="field-group"
+          >
+            <label class="field-label">Page visible to</label>
+            <div class="visibility-tags">
+              <span
+                v-if="!form.required_access_level_ids.length"
+                class="visibility-tag visibility-tag--everyone"
+              >Everyone</span>
+              <span
+                v-for="levelId in form.required_access_level_ids"
+                :key="levelId"
+                class="visibility-tag"
+              >
+                {{ pageLevelName(levelId) }}
+                <button
+                  type="button"
+                  class="tag-remove"
+                  @click="form.required_access_level_ids = form.required_access_level_ids.filter((id: string) => id !== levelId)"
+                >×</button>
+              </span>
+            </div>
+            <select
+              class="field-input"
+              :value="''"
+              @change="addPageAccessLevel(($event.target as HTMLSelectElement).value); ($event.target as HTMLSelectElement).value = ''"
+            >
+              <option value="">
+                + Add level...
+              </option>
+              <option
+                v-for="level in availablePageLevels"
+                :key="level.id"
+                :value="level.id"
+              >
+                {{ level.name }}
+              </option>
+            </select>
+            <span class="field-hint">Restrict this page to users with specific access levels. Empty = visible to everyone.</span>
+          </div>
         </div>
       </div>
     </div>
+
+    <!-- Page Widget Slots (areas of type "page-widget" defined in the layout) -->
+    <div
+      v-if="!isNew && pageWidgetSlots.length > 0"
+      class="page-widgets-section card"
+    >
+      <div class="section-header">
+        <h3 class="section-title">
+          Page Widgets
+        </h3>
+      </div>
+      <p class="field-hint">
+        Choose a widget for each slot. Each page can have its own widget selection.
+      </p>
+
+      <div
+        v-for="slot in pageWidgetSlots"
+        :key="slot.name"
+        class="pw-row"
+      >
+        <span class="pw-area">{{ slot.label || slot.name }}</span>
+        <div class="pw-widget">
+          <span
+            v-if="pageWidgetFor(slot.name)"
+            class="pw-assigned"
+          >
+            {{ pageWidgetName(pageWidgetFor(slot.name)!.widget_id) }}
+            <button
+              v-if="canManage"
+              type="button"
+              class="btn btn--xs btn--danger"
+              @click="clearPageWidget(slot.name)"
+            >×</button>
+          </span>
+          <button
+            v-else-if="canManage"
+            type="button"
+            class="btn btn--xs"
+            @click="openPageWidgetPicker(slot.name)"
+          >
+            + Choose widget
+          </button>
+          <span
+            v-else
+            class="pw-empty-slot"
+          >(empty)</span>
+        </div>
+        <!-- Visible to -->
+        <div
+          v-if="pageWidgetFor(slot.name) && pageAccessLevels.length > 0"
+          class="pw-visibility"
+        >
+          <span class="visibility-label">Visible to:</span>
+          <span
+            v-if="!(pageWidgetFor(slot.name)!.required_access_level_ids || []).length"
+            class="visibility-tag visibility-tag--everyone"
+          >Everyone</span>
+          <span
+            v-for="levelId in (pageWidgetFor(slot.name)!.required_access_level_ids || [])"
+            :key="levelId"
+            class="visibility-tag"
+          >
+            {{ pageLevelName(levelId) }}
+            <button
+              type="button"
+              class="tag-remove"
+              @click="removePageWidgetLevel(slot.name, levelId)"
+            >×</button>
+          </span>
+          <select
+            class="visibility-select"
+            :value="''"
+            @change="addPageWidgetLevel(slot.name, ($event.target as HTMLSelectElement).value); ($event.target as HTMLSelectElement).value = ''"
+          >
+            <option value="">
+              +
+            </option>
+            <option
+              v-for="level in availablePageWidgetLevels(slot.name)"
+              :key="level.id"
+              :value="level.id"
+            >
+              {{ level.name }}
+            </option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Page widget picker modal -->
+    <CmsWidgetPicker
+      v-if="pageWidgetPickerArea !== null"
+      @select="onPageWidgetSelected"
+      @close="pageWidgetPickerArea = null"
+    />
 
     <!-- Image picker modal -->
     <CmsImagePicker
@@ -354,12 +490,113 @@ import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useCmsAdminStore } from '../stores/useCmsAdminStore';
 import { useAuthStore } from '@/stores/auth';
+import { api } from '@/api';
 
 const authStore = useAuthStore();
+
+// ── Page access-level visibility ────────────────────────────────────────
+interface PageAccessLevel { id: string; name: string; slug: string; }
+const pageAccessLevels = ref<PageAccessLevel[]>([]);
+
+function pageLevelName(levelId: string): string {
+  return pageAccessLevels.value.find(l => l.id === levelId)?.name || levelId.slice(0, 8);
+}
+const availablePageLevels = computed(() =>
+  pageAccessLevels.value.filter(l => !form.value.required_access_level_ids.includes(l.id))
+);
+function addPageAccessLevel(levelId: string) {
+  if (levelId && !form.value.required_access_level_ids.includes(levelId)) {
+    form.value.required_access_level_ids.push(levelId);
+  }
+}
 const canManage = computed(() => authStore.hasPermission('cms.pages.manage'));
+
+// ── Page Widget Assignments ─────────────────────────────────────────────
+const pageWidgets = ref<CmsLayoutWidgetAssignment[]>([]);
+const pageWidgetPickerArea = ref<string | null>(null);
+
+// Areas of type "page-widget" — slots that each page fills with its own widget
+const pageWidgetSlots = computed(() => {
+  const layout = (store.layouts?.items ?? []).find(
+    (l: { id: string }) => l.id === form.value.layout_id
+  );
+  if (!layout) return [];
+  return (layout.areas || []).filter(
+    (a: { type: string }) => a.type === 'page-widget'
+  );
+});
+
+function pageWidgetFor(areaName: string) {
+  return pageWidgets.value.find(pw => pw.area_name === areaName) ?? null;
+}
+
+function pageWidgetName(widgetId: string): string {
+  const w = (store.widgets?.items ?? []).find(
+    (i: { id: string }) => i.id === widgetId
+  );
+  return w ? w.name : widgetId.slice(0, 8) + '...';
+}
+
+function clearPageWidget(areaName: string) {
+  pageWidgets.value = pageWidgets.value.filter(pw => pw.area_name !== areaName);
+}
+
+function openPageWidgetPicker(areaName: string) {
+  pageWidgetPickerArea.value = areaName;
+}
+
+function onPageWidgetSelected(widget: CmsWidget) {
+  const areaName = pageWidgetPickerArea.value!;
+  const existing = pageWidgets.value.findIndex(pw => pw.area_name === areaName);
+  const entry: CmsLayoutWidgetAssignment = {
+    widget_id: widget.id,
+    area_name: areaName,
+    sort_order: existing >= 0 ? pageWidgets.value[existing].sort_order : pageWidgets.value.length,
+    required_access_level_ids: [],
+  };
+  if (existing >= 0) pageWidgets.value[existing] = entry;
+  else pageWidgets.value.push(entry);
+  pageWidgetPickerArea.value = null;
+}
+
+async function savePageWidgets() {
+  const pageId = id.value;
+  if (!pageId) return;
+  try {
+    await api.put(`/admin/cms/pages/${pageId}/widgets`, pageWidgets.value);
+  } catch (e: unknown) {
+    alert((e as Error)?.message ?? 'Failed to save page widgets');
+  }
+}
+
+function availablePageWidgetLevels(areaName: string) {
+  const pw = pageWidgetFor(areaName);
+  const selected = pw?.required_access_level_ids || [];
+  return pageAccessLevels.value.filter(l => !selected.includes(l.id));
+}
+
+function addPageWidgetLevel(areaName: string, levelId: string) {
+  if (!levelId) return;
+  const pw = pageWidgetFor(areaName);
+  if (!pw) return;
+  if (!pw.required_access_level_ids) pw.required_access_level_ids = [];
+  if (!pw.required_access_level_ids.includes(levelId)) {
+    pw.required_access_level_ids.push(levelId);
+  }
+}
+
+function removePageWidgetLevel(areaName: string, levelId: string) {
+  const pw = pageWidgetFor(areaName);
+  if (!pw?.required_access_level_ids) return;
+  pw.required_access_level_ids = pw.required_access_level_ids.filter(
+    (id: string) => id !== levelId
+  );
+}
 import TipTapEditor from '../components/TipTapEditor.vue';
 import CodeMirrorEditor from '../components/CodeMirrorEditor.vue';
 import CmsImagePicker from '../components/CmsImagePicker.vue';
+import CmsWidgetPicker from '../components/CmsWidgetPicker.vue';
+import type { CmsLayoutWidgetAssignment, CmsWidget } from '../stores/useCmsAdminStore';
 
 const route = useRoute();
 const router = useRouter();
@@ -456,6 +693,7 @@ interface PageForm {
   layout_id: string;
   style_id: string;
   use_theme_switcher_styles: boolean;
+  required_access_level_ids: string[];
   meta_title: string;
   meta_description: string;
   meta_keywords: string;
@@ -480,6 +718,7 @@ const form = ref<PageForm>({
   layout_id: '',
   style_id: '',
   use_theme_switcher_styles: true,
+  required_access_level_ids: [] as string[],
   meta_title: '',
   meta_description: '',
   meta_keywords: '',
@@ -569,6 +808,12 @@ async function save(publish?: boolean) {
   if (saved && isNew.value) {
     router.replace({ name: 'cms-page-edit', params: { id: saved.id } });
   }
+
+  // Save page widget assignments together with page data
+  const pageId = saved?.id || id.value;
+  if (pageId && pageWidgets.value.length > 0) {
+    await savePageWidgets();
+  }
 }
 
 async function togglePublish() {
@@ -585,6 +830,10 @@ onMounted(async () => {
     store.fetchCategories(),
     store.fetchLayouts({ per_page: 100 }),
     store.fetchStyles({ per_page: 100 }),
+    store.fetchWidgets({ per_page: 200 }),
+    api.get('/admin/access/user-levels').then((res: any) => {
+      pageAccessLevels.value = res.levels || [];
+    }).catch(() => {}),
   ]);
   if (!isNew.value) {
     await store.fetchPage(id.value!);
@@ -603,6 +852,7 @@ onMounted(async () => {
         layout_id: (p as any).layout_id ?? '',
         style_id: (p as any).style_id ?? '',
         use_theme_switcher_styles: (p as any).use_theme_switcher_styles ?? true,
+        required_access_level_ids: (p as any).required_access_level_ids ?? [],
         meta_title: p.meta_title ?? '',
         meta_description: p.meta_description ?? '',
         meta_keywords: p.meta_keywords ?? '',
@@ -615,6 +865,12 @@ onMounted(async () => {
       };
       schemaJsonText.value = p.schema_json ? JSON.stringify(p.schema_json, null, 2) : '';
       previewToken.value = (p as any).preview_token ?? '';
+
+      // Load page widget assignments
+      const pageAssignments = (p as any).page_assignments;
+      if (Array.isArray(pageAssignments)) {
+        pageWidgets.value = pageAssignments.map((a: CmsLayoutWidgetAssignment) => ({ ...a }));
+      }
 
       // Build content blocks from layout areas + saved data
       rebuildBlocks();
@@ -685,4 +941,20 @@ textarea.field-input { resize: vertical; }
 /* SEO collapsible */
 .seo-section { margin-top: 20px; }
 .seo-section__toggle { cursor: pointer; font-size: 0.9rem; font-weight: 600; color: #374151; padding: 10px 0; border-top: 1px solid #e5e7eb; }
+.field-hint { font-size: 0.75rem; color: #9ca3af; margin-top: 4px; }
+.visibility-tags { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 6px; }
+.visibility-tag { display: inline-flex; align-items: center; gap: 3px; font-size: 0.75rem; padding: 2px 8px; border-radius: 10px; background: #dbeafe; color: #1e40af; }
+.visibility-tag--everyone { background: #d1fae5; color: #065f46; }
+.tag-remove { background: none; border: none; color: #1e40af; cursor: pointer; font-size: 0.85rem; padding: 0 2px; line-height: 1; }
+/* Page widgets */
+.page-widgets-section { margin-top: 1.5rem; }
+.section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+.section-title { font-size: 1rem; font-weight: 600; margin: 0; }
+.pw-row { display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.5rem 0; border-bottom: 1px solid #f3f4f6; flex-wrap: wrap; }
+.pw-area { font-size: 0.8rem; padding: 2px 8px; border-radius: 10px; background: #dcfce7; color: #166534; white-space: nowrap; }
+.pw-widget { flex: 1; min-width: 150px; }
+.pw-assigned { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; font-family: monospace; background: #f3f4f6; padding: 2px 6px; border-radius: 4px; }
+.pw-visibility { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; width: 100%; }
+.visibility-label { font-size: 0.7rem; color: #6b7280; white-space: nowrap; }
+.visibility-select { font-size: 0.75rem; padding: 1px 4px; border: 1px solid #d1d5db; border-radius: 3px; }
 </style>

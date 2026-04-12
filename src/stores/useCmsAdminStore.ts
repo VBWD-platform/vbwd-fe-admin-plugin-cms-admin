@@ -64,6 +64,7 @@ export interface CmsLayoutWidgetAssignment {
   widget_id: string;
   area_name: string;
   sort_order: number;
+  required_access_level_ids?: string[];
 }
 
 export interface CmsLayout {

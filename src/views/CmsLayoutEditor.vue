@@ -214,7 +214,7 @@
           </button>
         </div>
         <p class="hint">
-          Assign widgets to non-content areas. <em>Content</em>-type areas render the page's TipTap content.
+          Assign layout-level widgets. <em>Content</em> areas render page content. <em>Page-widget</em> areas are filled per-page.
         </p>
         <div
           v-if="assignableAreas.length === 0"
@@ -233,7 +233,7 @@
               v-if="assignmentFor(area.name)"
               class="assigned-widget"
             >
-              {{ assignmentFor(area.name)!.widget_id }}
+              {{ widgetNameFor(assignmentFor(area.name)!.widget_id) }}
               <button
                 type="button"
                 class="btn btn--xs btn--danger"
@@ -248,6 +248,47 @@
             >
               + Assign Widget
             </button>
+          </div>
+          <!-- Visible to: access level multi-select -->
+          <div
+            v-if="assignmentFor(area.name) && userAccessLevels.length > 0"
+            class="assignment-visibility"
+          >
+            <label class="visibility-label">Visible to:</label>
+            <select
+              :value="''"
+              class="visibility-select"
+              @change="addAccessLevel(area.name, ($event.target as HTMLSelectElement).value); ($event.target as HTMLSelectElement).value = ''"
+            >
+              <option value="">
+                + Add level...
+              </option>
+              <option
+                v-for="level in availableLevelsFor(area.name)"
+                :key="level.id"
+                :value="level.id"
+              >
+                {{ level.name }}
+              </option>
+            </select>
+            <div class="visibility-tags">
+              <span
+                v-if="!(assignmentFor(area.name)!.required_access_level_ids || []).length"
+                class="visibility-tag visibility-tag--everyone"
+              >Everyone</span>
+              <span
+                v-for="levelId in (assignmentFor(area.name)!.required_access_level_ids || [])"
+                :key="levelId"
+                class="visibility-tag"
+              >
+                {{ levelNameFor(levelId) }}
+                <button
+                  type="button"
+                  class="tag-remove"
+                  @click="removeAccessLevel(area.name, levelId)"
+                >×</button>
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -313,10 +354,11 @@ import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useCmsAdminStore } from '../stores/useCmsAdminStore';
 import { useAuthStore } from '@/stores/auth';
+import { api } from '@/api';
 import type { CmsAreaDefinition, CmsLayoutWidgetAssignment, CmsWidget } from '../stores/useCmsAdminStore';
 import CmsWidgetPicker from '../components/CmsWidgetPicker.vue';
 
-const AREA_TYPES = ['header', 'footer', 'hero', 'slideshow', 'content', 'three-column', 'two-column', 'cta-bar', 'vue'];
+const AREA_TYPES = ['header', 'footer', 'hero', 'slideshow', 'content', 'three-column', 'two-column', 'cta-bar', 'vue', 'page-widget'];
 
 const route = useRoute();
 const router = useRouter();
@@ -365,13 +407,49 @@ function onAreaDrop(toIndex: number) {
 }
 
 // Non-content areas can get widget assignments
+// Exclude content areas AND page-widget areas (those are filled per-page)
 const assignableAreas = computed(() =>
-  form.value.areas.filter(a => a.type !== 'content')
+  form.value.areas.filter(a => a.type !== 'content' && a.type !== 'page-widget')
 );
 
 function widgetNameFor(widgetId: string): string {
   const w = store.widgets?.items?.find(i => i.id === widgetId);
   return w ? `${w.name} (${w.slug})` : widgetId;
+}
+
+// ── Access-level visibility ────────────────────────────────────────────
+interface UserAccessLevel { id: string; name: string; slug: string; }
+const userAccessLevels = ref<UserAccessLevel[]>([]);
+
+function levelNameFor(levelId: string): string {
+  const level = userAccessLevels.value.find(l => l.id === levelId);
+  return level ? level.name : levelId.slice(0, 8);
+}
+
+function availableLevelsFor(areaName: string): UserAccessLevel[] {
+  const assignment = assignmentFor(areaName);
+  const selected = assignment?.required_access_level_ids || [];
+  return userAccessLevels.value.filter(l => !selected.includes(l.id));
+}
+
+function addAccessLevel(areaName: string, levelId: string) {
+  if (!levelId) return;
+  const assignment = assignmentFor(areaName);
+  if (!assignment) return;
+  if (!assignment.required_access_level_ids) {
+    assignment.required_access_level_ids = [];
+  }
+  if (!assignment.required_access_level_ids.includes(levelId)) {
+    assignment.required_access_level_ids.push(levelId);
+  }
+}
+
+function removeAccessLevel(areaName: string, levelId: string) {
+  const assignment = assignmentFor(areaName);
+  if (!assignment?.required_access_level_ids) return;
+  assignment.required_access_level_ids = assignment.required_access_level_ids.filter(
+    (id: string) => id !== levelId
+  );
 }
 
 function assignmentFor(areaName: string) {
@@ -434,6 +512,13 @@ async function remove() {
 
 onMounted(async () => {
   store.fetchWidgets({ per_page: 200 });
+  // Load user access levels for "Visible to" dropdown
+  try {
+    const res = await api.get('/admin/access/user-levels') as { levels: UserAccessLevel[] };
+    userAccessLevels.value = res.levels || [];
+  } catch {
+    userAccessLevels.value = [];
+  }
   if (!isNew) {
     await store.fetchLayout(id!);
     const l = store.currentLayout;
@@ -494,10 +579,17 @@ onMounted(async () => {
 .area-remove { margin-bottom: 1rem; flex-shrink: 0; }
 .empty-hint { color: #9ca3af; font-size: 0.875rem; padding: 0.5rem 0; }
 
-.assignment-row { display: flex; align-items: center; gap: 1rem; padding: 0.6rem 0; border-bottom: 1px solid #f3f4f6; }
-.area-chip-lg { font-size: 0.85rem; padding: 3px 10px; border-radius: 12px; background: #dcfce7; color: #166534; white-space: nowrap; }
-.assignment-widget { flex: 1; }
+.assignment-row { display: flex; align-items: flex-start; gap: 1rem; padding: 0.6rem 0; border-bottom: 1px solid #f3f4f6; flex-wrap: wrap; }
+.area-chip-lg { font-size: 0.85rem; padding: 3px 10px; border-radius: 12px; background: #dcfce7; color: #166534; white-space: nowrap; margin-top: 2px; }
+.assignment-widget { flex: 1; min-width: 200px; }
 .assigned-widget { display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; font-family: monospace; background: #f3f4f6; padding: 3px 8px; border-radius: 4px; }
+.assignment-visibility { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; width: 100%; padding-left: calc(1rem + 120px); }
+.visibility-label { font-size: 0.75rem; color: #6b7280; white-space: nowrap; }
+.visibility-select { font-size: 0.8rem; padding: 2px 6px; border: 1px solid #d1d5db; border-radius: 4px; }
+.visibility-tags { display: flex; gap: 4px; flex-wrap: wrap; }
+.visibility-tag { display: inline-flex; align-items: center; gap: 3px; font-size: 0.75rem; padding: 2px 8px; border-radius: 10px; background: #dbeafe; color: #1e40af; }
+.visibility-tag--everyone { background: #d1fae5; color: #065f46; }
+.tag-remove { background: none; border: none; color: #1e40af; cursor: pointer; font-size: 0.85rem; padding: 0 2px; line-height: 1; }
 .hint { font-size: 0.8rem; color: #6b7280; margin: 0 0 1rem; }
 
 .field-group { margin-bottom: 1rem; }
